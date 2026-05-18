@@ -9,16 +9,22 @@ Instrumentator().instrument(app).expose(app)  # Integration 9: Prometheus
 VLLM_URL = os.environ["VLLM_URL"]
 QDRANT_URL = os.environ.get("QDRANT_URL", "http://qdrant:6333")
 
+from pydantic import BaseModel
+
+class ChatRequest(BaseModel):
+    query: str
+    embedding: list[float] = [0.0] * 384
+
 @app.post("/api/v1/chat")
-async def chat(request: Request):
-    body = await request.json()
-    query = body["query"]
+async def chat(request: ChatRequest):
+    query = request.query
+    embedding = request.embedding
     start = time.time()
 
     # 1. Vector search
     async with httpx.AsyncClient() as client:
         search_resp = await client.post(f"{QDRANT_URL}/collections/documents/points/search", json={
-            "vector": body.get("embedding", [0.0] * 384),
+            "vector": embedding,
             "limit": 3
         })
         context = search_resp.json().get("result", [])
